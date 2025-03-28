@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, ThumbsUp, Laugh, AlertCircle, Frown, Loader2 } from 'lucide-react';
-import { addReaction, type Memory, type ReactionType } from '../lib/firebase';
+import { addReaction, type Memory, type ReactionType, getUserReactionForMemory } from '../lib/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -55,6 +55,14 @@ const MemoryReactions: React.FC<MemoryReactionsProps> = ({ memory, onReactionAdd
   const [isLoading, setIsLoading] = useState<ReactionType | null>(null);
   const [lastReacted, setLastReacted] = useState<ReactionType | null>(null);
   const { toast } = useToast();
+  
+  // Load the user's current reaction for this memory
+  useEffect(() => {
+    const userReaction = getUserReactionForMemory(memory.id);
+    if (userReaction) {
+      setLastReacted(userReaction);
+    }
+  }, [memory.id]);
 
   const reactions = memory.reactions || {
     like: 0,
@@ -68,11 +76,23 @@ const MemoryReactions: React.FC<MemoryReactionsProps> = ({ memory, onReactionAdd
     try {
       setIsLoading(type);
       await addReaction(memory.id, type);
-      setLastReacted(type);
-      toast({
-        description: `You reacted with ${type}!`,
-        duration: 2000
-      });
+      
+      // Set or clear the last reacted state based on whether this was a toggle or new reaction
+      if (lastReacted === type) {
+        // If same reaction clicked, it was removed (toggle behavior)
+        setLastReacted(null);
+        toast({
+          description: `Reaction removed!`,
+          duration: 2000
+        });
+      } else {
+        // New reaction or changed reaction
+        setLastReacted(type);
+        toast({
+          description: `You reacted with ${type}!`,
+          duration: 2000
+        });
+      }
       
       // Call the callback if provided
       if (onReactionAdded) {

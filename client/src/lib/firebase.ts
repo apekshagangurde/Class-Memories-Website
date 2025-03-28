@@ -258,6 +258,28 @@ export async function clearAndAddTraditionalDayMemory(): Promise<void> {
   }
 }
 
+// Store user reactions in local storage to limit one reaction per memory
+const USER_REACTIONS_KEY = 'user_memory_reactions';
+
+// Function to get user's reactions from localStorage
+function getUserReactions(): Record<string, ReactionType> {
+  const stored = localStorage.getItem(USER_REACTIONS_KEY);
+  return stored ? JSON.parse(stored) : {};
+}
+
+// Function to save user's reaction to localStorage
+function saveUserReaction(memoryId: string, reactionType: ReactionType): void {
+  const userReactions = getUserReactions();
+  userReactions[memoryId] = reactionType;
+  localStorage.setItem(USER_REACTIONS_KEY, JSON.stringify(userReactions));
+}
+
+// Function to get user's previous reaction for a memory, if any
+export function getUserReactionForMemory(memoryId: string): ReactionType | null {
+  const userReactions = getUserReactions();
+  return userReactions[memoryId] || null;
+}
+
 // Function to add a reaction to a memory
 export async function addReaction(memoryId: string, reactionType: ReactionType): Promise<void> {
   try {
@@ -265,6 +287,9 @@ export async function addReaction(memoryId: string, reactionType: ReactionType):
     
     // Get the memory document reference
     const memoryRef = doc(db, "memories", memoryId);
+    
+    // Get the user's previous reaction, if any
+    const previousReaction = getUserReactionForMemory(memoryId);
     
     // Use a transaction to ensure we're updating the correct count atomically
     await runTransaction(db, async (transaction) => {
@@ -284,19 +309,37 @@ export async function addReaction(memoryId: string, reactionType: ReactionType):
         sad: 0
       };
       
-      // Increment the count for this reaction type
-      const updatedReactions = {
-        ...currentReactions,
-        [reactionType]: (currentReactions[reactionType] || 0) + 1
-      };
+      // Create a copy of current reactions
+      const updatedReactions = { ...currentReactions };
+      
+      // If user had a previous reaction, decrement it
+      if (previousReaction && previousReaction !== reactionType) {
+        updatedReactions[previousReaction] = Math.max(0, (currentReactions[previousReaction] || 0) - 1);
+      }
+      
+      // Only increment if this is a new reaction or different from previous
+      if (!previousReaction || previousReaction !== reactionType) {
+        updatedReactions[reactionType] = (currentReactions[reactionType] || 0) + 1;
+        
+        // Save the user's new reaction
+        saveUserReaction(memoryId, reactionType);
+      } else {
+        // If it's the same reaction, remove it (toggle behavior)
+        updatedReactions[reactionType] = Math.max(0, (currentReactions[reactionType] || 0) - 1);
+        
+        // Remove from local storage
+        const userReactions = getUserReactions();
+        delete userReactions[memoryId];
+        localStorage.setItem(USER_REACTIONS_KEY, JSON.stringify(userReactions));
+      }
       
       // Update the memory document
       transaction.update(memoryRef, { reactions: updatedReactions });
     });
     
-    console.log(`Successfully added ${reactionType} reaction to memory: ${memoryId}`);
+    console.log(`Successfully processed ${reactionType} reaction for memory: ${memoryId}`);
   } catch (error) {
-    console.error("Error adding reaction:", error);
+    console.error("Error processing reaction:", error);
     throw error;
   }
 }

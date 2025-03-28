@@ -105,7 +105,7 @@ export default function MemoryCard({ memory, onImageClick, onReactionAdded }: Me
           </h3>
           <span className="text-xs text-gray-500">{formattedDate}</span>
         </div>
-        <p className="text-gray-600 mb-4">{memory.content}</p>
+        <p className="text-gray-600 mb-4 line-clamp-3">{memory.content}</p>
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-3">
