@@ -33,80 +33,94 @@ const MEMORIES_PER_PAGE = 8;
 // Function to upload an image to Firebase Storage with extreme compression for almost instant uploads
 export async function uploadImage(file: File): Promise<string> {
   try {
+    console.log("Starting image upload process...");
+    
     // Set a size threshold - tiny images don't need compression
     const SIZE_THRESHOLD_MB = 0.3; // 300KB
     const fileSizeMB = file.size / 1024 / 1024;
     
     // Start by preparing the filename - we'll need it regardless of compression path
     const timestamp = Date.now();
-    const safeFileName = file.name.split(' ').join('_').substring(0, 30); // Limit filename length
-    const filename = `memory_images/${timestamp}_${safeFileName}`;
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const safeFileName = file.name.replace(/[^a-z0-9]/gi, '_').substring(0, 20); // Limit filename length, remove special chars
+    const filename = `memory_images/${timestamp}_${safeFileName}.${fileExtension}`;
     
-    // If file is already tiny, skip compression entirely
-    if (fileSizeMB <= SIZE_THRESHOLD_MB) {
-      console.log(`File already small (${fileSizeMB.toFixed(2)}MB), skipping compression`);
-      const storageRef = ref(storage, filename);
-      const snapshot = await uploadBytes(storageRef, file);
-      return getDownloadURL(snapshot.ref);
-    }
+    console.log(`Preparing to upload file: ${filename}, Original size: ${fileSizeMB.toFixed(2)}MB`);
     
-    // For larger files, use ultra compression settings
-    const options = {
-      maxSizeMB: 0.1,             // Ultra tiny (100KB target)
-      maxWidthOrHeight: 800,      // Small enough for web viewing
-      useWebWorker: true,         // Parallel processing
-      fileType: 'image/jpeg',     // Always convert to JPEG
-      alwaysKeepResolution: false,
-      initialQuality: 0.3,        // Very low quality for extreme speed
-      exifOrientation: -1,        // Skip EXIF processing
-    };
-
-    // Compress the image as fast as possible
-    console.time('Compression time');
-    const compressedFile = await imageCompression(file, options);
-    console.timeEnd('Compression time');
+    let fileToUpload: File | Blob = file;
+    let finalFilename = filename;
     
-    console.log(`Original: ${fileSizeMB.toFixed(2)}MB → Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
-    
-    // Upload directly without extra processing
-    const storageRef = ref(storage, filename);
-    const snapshot = await uploadBytes(storageRef, compressedFile);
-    
-    // Return the URL immediately
-    return getDownloadURL(snapshot.ref);
-  } catch (error) {
-    console.error("Error in compression:", error);
-    
-    // If any error occurs, immediately try the most basic approach
-    try {
-      console.log("Using emergency fallback - minimal compression");
-      const storageRef = ref(storage, `memory_images/fallback_${Date.now()}.jpg`);
-      
-      // Try minimal compression first
+    // For larger files, compress them
+    if (fileSizeMB > SIZE_THRESHOLD_MB) {
       try {
-        const minimalOptions = { 
-          maxSizeMB: 0.5, 
-          maxWidthOrHeight: 1000,
-          useWebWorker: false, // Avoid worker to simplify
-          fileType: 'image/jpeg'
+        // For larger files, use ultra compression settings
+        const options = {
+          maxSizeMB: 0.1,             // Ultra tiny (100KB target)
+          maxWidthOrHeight: 800,      // Small enough for web viewing
+          useWebWorker: true,         // Parallel processing
+          fileType: 'image/jpeg',     // Always convert to JPEG
+          alwaysKeepResolution: false,
+          initialQuality: 0.5,        // Slightly higher quality for better images
         };
-        const basicFile = await imageCompression(file, minimalOptions);
-        const snapshot = await uploadBytes(storageRef, basicFile);
-        return getDownloadURL(snapshot.ref);
-      } catch {
-        // Last resort - upload original
-        const snapshot = await uploadBytes(storageRef, file);
-        return getDownloadURL(snapshot.ref);
+
+        // Compress the image
+        console.time('Compression time');
+        const compressedFile = await imageCompression(file, options);
+        console.timeEnd('Compression time');
+        
+        console.log(`Compression successful - Original: ${fileSizeMB.toFixed(2)}MB → Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+        
+        fileToUpload = compressedFile;
+        finalFilename = `memory_images/${timestamp}_compressed.jpg`; // Always use jpg for compressed files
+      } catch (compressionError) {
+        console.error("Image compression failed:", compressionError);
+        console.log("Will try to upload original file instead");
       }
-    } catch (finalError) {
-      console.error("All upload attempts failed:", finalError);
-      throw new Error("Could not upload image after multiple attempts");
+    } else {
+      console.log(`File already small (${fileSizeMB.toFixed(2)}MB), skipping compression`);
     }
+    
+    // Upload the file (either compressed or original)
+    console.log(`Uploading to Firebase Storage: ${finalFilename}`);
+    const storageRef = ref(storage, finalFilename);
+    
+    try {
+      const metadata = {
+        contentType: fileToUpload.type || 'image/jpeg',
+        customMetadata: {
+          originalSize: `${fileSizeMB.toFixed(2)}MB`,
+          originalName: file.name
+        }
+      };
+      
+      const snapshot = await uploadBytes(storageRef, fileToUpload, metadata);
+      console.log("Upload successful, getting download URL...");
+      
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      console.log("Got download URL:", downloadURL.substring(0, 50) + "...");
+      return downloadURL;
+    } catch (uploadError) {
+      console.error("Error uploading to Firebase Storage:", uploadError);
+      
+      // Try one more time with a simplified approach
+      console.log("Attempting fallback upload with minimal metadata");
+      const fallbackRef = ref(storage, `memory_images/fallback_${timestamp}.jpg`);
+      const fallbackSnapshot = await uploadBytes(fallbackRef, fileToUpload);
+      return getDownloadURL(fallbackSnapshot.ref);
+    }
+  } catch (error) {
+    console.error("Fatal error in image upload process:", error);
+    throw new Error("Could not upload image after multiple attempts: " + (error instanceof Error ? error.message : String(error)));
   }
 }
 
 // Function to add a memory to Firestore
-export async function addMemory(memory: Omit<Memory, 'id' | 'createdAt'>): Promise<string> {
+export async function addMemory(memory: {
+  title: string;
+  content: string;
+  author: string;
+  imageUrl?: string;
+}): Promise<string> {
   console.log("Adding memory to Firestore with data:", JSON.stringify({
     title: memory.title,
     content: memory.content, 

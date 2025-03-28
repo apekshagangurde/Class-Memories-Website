@@ -118,17 +118,13 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
           throw new Error("Missing required fields");
         }
         
-        // Try submitting with sanitized data
+        // Prepare data for Firestore
         const memoryData = {
           title: String(data.title).trim(),
           content: String(data.content).trim(),
-          author: String(data.author).trim()
+          author: String(data.author).trim(),
+          ...(imageUrl ? { imageUrl } : {})
         };
-        
-        // Only add imageUrl if we have one
-        if (imageUrl) {
-          memoryData.imageUrl = imageUrl;
-        }
         
         const memoryId = await addMemory(memoryData);
         console.log("Memory saved successfully with ID:", memoryId);
