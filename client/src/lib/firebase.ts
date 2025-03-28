@@ -107,11 +107,31 @@ export async function uploadImage(file: File): Promise<string> {
 
 // Function to add a memory to Firestore
 export async function addMemory(memory: Omit<Memory, 'id' | 'createdAt'>): Promise<string> {
-  const docRef = await addDoc(collection(db, "memories"), {
-    ...memory,
-    createdAt: new Date()
-  });
-  return docRef.id;
+  console.log("Adding memory to Firestore with data:", JSON.stringify({
+    title: memory.title,
+    content: memory.content, 
+    author: memory.author,
+    imageUrl: memory.imageUrl ? "[Image URL exists]" : undefined
+  }, null, 2));
+  
+  // Make sure we sanitize the data properly
+  const memoryToSave = {
+    title: memory.title || "",
+    content: memory.content || "",
+    author: memory.author || "",
+    createdAt: new Date(),
+    // Only include imageUrl if it's defined and not empty
+    ...(memory.imageUrl ? { imageUrl: memory.imageUrl } : {})
+  };
+  
+  try {
+    const docRef = await addDoc(collection(db, "memories"), memoryToSave);
+    console.log("Successfully saved memory with ID:", docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error in addMemory:", error);
+    throw error;
+  }
 }
 
 // Function to fetch memories with pagination

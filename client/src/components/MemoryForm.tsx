@@ -105,15 +105,37 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
       }
       
       // Step 2: Save memory to Firestore
-      console.log("Adding memory to Firestore");
-      const memoryId = await addMemory({
+      console.log("Adding memory to Firestore with data:", {
         title: data.title,
         content: data.content,
         author: data.author,
-        imageUrl
+        hasImage: !!imageUrl
       });
       
-      console.log("Memory saved successfully with ID:", memoryId);
+      try {
+        // Validate data before submitting
+        if (!data.title || !data.content || !data.author) {
+          throw new Error("Missing required fields");
+        }
+        
+        // Try submitting with sanitized data
+        const memoryData = {
+          title: String(data.title).trim(),
+          content: String(data.content).trim(),
+          author: String(data.author).trim()
+        };
+        
+        // Only add imageUrl if we have one
+        if (imageUrl) {
+          memoryData.imageUrl = imageUrl;
+        }
+        
+        const memoryId = await addMemory(memoryData);
+        console.log("Memory saved successfully with ID:", memoryId);
+      } catch (saveError) {
+        console.error("Detailed error in form submission:", saveError);
+        throw saveError;
+      }
       
       // Step 3: Clean up form and display success
       form.reset();
