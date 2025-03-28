@@ -15,6 +15,7 @@ const MemoryGrid: React.FC = () => {
   const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [refetchCounter, setRefetchCounter] = useState(0);
   const { toast } = useToast();
 
   const fetchMemories = async (isInitial = false) => {
@@ -84,10 +85,17 @@ const MemoryGrid: React.FC = () => {
   };
 
   useEffect(() => {
+    // Fetch memories whenever the refetchCounter changes
+    console.log("Refetching memories due to counter change:", refetchCounter);
+    
+    // Reset the pagination and start fresh
+    setLastVisible(null);
+    setHasMore(true);
+    
     // Instead of clearing Firebase (which requires admin privileges),
     // just fetch memories and then handle the Traditional Day memory in the UI
     fetchMemories(true);
-  }, []);
+  }, [refetchCounter]);
 
   const handleLoadMore = () => {
     fetchMemories();
@@ -160,7 +168,7 @@ const MemoryGrid: React.FC = () => {
       <MemoryForm 
         isOpen={isMemoryFormOpen} 
         onClose={() => setIsMemoryFormOpen(false)} 
-        onMemoryAdded={() => fetchMemories(true)}
+        onMemoryAdded={() => setRefetchCounter(prev => prev + 1)}
       />
       
       <ImageLightbox 

@@ -73,74 +73,75 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
     }
   };
 
-  const onSubmit = async (data: FormValues) => {
+  const handleSubmit = async (data: FormValues) => {
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    
+    // Show processing notification
+    const processingToast = toast({
+      title: "Processing...",
+      description: "Saving your memory",
+      duration: 10000
+    });
+    
     try {
-      // Ensure we're in submitting state
-      setIsSubmitting(true);
+      // Step 1: Upload image if present
+      let imageUrl: string | undefined = undefined;
       
-      // Save form data for use after form is closed
-      const memoryData = {
+      if (selectedImage) {
+        console.log("Uploading image:", selectedImage.name);
+        try {
+          imageUrl = await uploadImage(selectedImage);
+          console.log("Image uploaded successfully, URL obtained");
+        } catch (imageError) {
+          console.error("Failed to upload image:", imageError);
+          toast({
+            title: "Image Upload Failed",
+            description: "We couldn't upload your image, but we can still save your memory without it.",
+            variant: "destructive",
+          });
+        }
+      }
+      
+      // Step 2: Save memory to Firestore
+      console.log("Adding memory to Firestore");
+      const memoryId = await addMemory({
         title: data.title,
         content: data.content,
         author: data.author,
-      };
-      
-      // Show processing notification
-      toast({
-        title: "Processing...",
-        description: "Saving your memory",
-        duration: 5000
+        imageUrl
       });
       
-      // IMPORTANT: Start Firebase operations BEFORE closing the form
-      let uploadPromise: Promise<string | undefined> = Promise.resolve(undefined);
+      console.log("Memory saved successfully with ID:", memoryId);
       
-      // Start image upload if we have an image - but don't wait for completion
-      if (selectedImage) {
-        console.log("Starting image upload for", selectedImage.name);
-        uploadPromise = uploadImage(selectedImage)
-          .catch(err => {
-            console.error("Upload error:", err);
-            return undefined;
-          });
-      }
-      
-      // Close the form for better UX 
+      // Step 3: Clean up form and display success
       form.reset();
       removeImage();
-      onClose();
       
-      // Now wait for the image upload to complete
-      console.log("Waiting for image upload to complete...");
-      const imageUrl = await uploadPromise;
-      console.log("Image upload finished, got URL:", imageUrl ? "Yes" : "No");
-      
-      // Now save the memory to Firebase
-      console.log("Adding memory to Firebase...");
-      const memoryId = await addMemory({
-        ...memoryData,
-        imageUrl,
-      });
-      console.log("Memory added with ID:", memoryId);
-      
-      // Trigger UI refresh explicitly - use a small delay to ensure Firebase has time to update
-      setTimeout(() => {
-        console.log("Calling onMemoryAdded to refresh the memory grid");
-        onMemoryAdded();
-      }, 500);
-      
-      // Show success notification
+      // Success notification
       toast({
         title: "Success!",
         description: "Your memory has been saved",
         duration: 3000
       });
       
+      // Close modal
+      onClose();
+      
+      // Wait a moment for Firestore to update
+      console.log("Waiting for Firestore to update...");
+      setTimeout(() => {
+        // Refresh the memory grid
+        console.log("Refreshing memory grid");
+        onMemoryAdded();
+      }, 1000);
+      
     } catch (error) {
-      console.error("Error submitting memory:", error);
+      console.error("Error saving memory:", error);
       toast({
         title: "Error",
-        description: "Failed to share your memory. Please try again.",
+        description: "There was a problem saving your memory. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -153,7 +154,9 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open && !isSubmitting) onClose();
+    }}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-heading font-bold text-gray-800">Share Your Memory</DialogTitle>
@@ -163,7 +166,7 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
             <FormField
               control={form.control}
               name="title"
