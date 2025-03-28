@@ -77,65 +77,50 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
     try {
       setIsSubmitting(true);
       
-      // First, show a minimal toast that stays for a short time
-      toast({
-        title: "Saving your memory...",
-        description: "Please wait a moment.",
-        duration: 2000, // shorter duration for better UX
+      // Start with a simple minimal notification
+      const initialToast = toast({
+        title: "Sharing memory...",
+        description: "Creating your memory",
+        duration: 3000
       });
       
-      let imageUrl = undefined;
+      // Close the form immediately for better UX - let processing continue in background
+      setTimeout(() => {
+        form.reset();
+        removeImage();
+        onClose();
+      }, 300);
       
-      // Process everything in parallel for faster completion
-      const promises: Promise<any>[] = [];
-      
-      // Start image compression and upload immediately if there's an image
+      // Process image if needed
+      let imageUrl: string | undefined = undefined;
       if (selectedImage) {
-        promises.push(
-          uploadImage(selectedImage)
-            .then(url => {
-              imageUrl = url;
-            })
-        );
+        // Upload and get the URL
+        try {
+          imageUrl = await uploadImage(selectedImage);
+        } catch (uploadError) {
+          console.error("Image upload failed:", uploadError);
+          // Continue without an image
+        }
       }
       
-      // Start adding memory data to Firestore as soon as possible
-      // If there's an image, we'll update it later with the URL
-      if (!selectedImage) {
-        // If no image, add memory right away
-        promises.push(
-          addMemory({
-            title: data.title, 
-            content: data.content,
-            author: data.author,
-          })
-        );
-      }
-      
-      // Wait for all processes to complete
-      await Promise.all(promises);
-      
-      // If we have an image but didn't add the memory yet, do it now with the image URL
-      if (selectedImage && imageUrl) {
-        await addMemory({
-          title: data.title,
-          content: data.content,
-          author: data.author,
-          imageUrl,
-        });
-      }
-      
-      // Show success message
-      toast({
-        title: "Success!",
-        description: "Your memory has been shared",
+      // Add memory to database
+      await addMemory({
+        title: data.title,
+        content: data.content,
+        author: data.author,
+        imageUrl,
       });
       
-      // Reset the form and close
-      form.reset();
-      removeImage();
+      // Success notification
+      toast({
+        title: "Memory shared!",
+        description: "Your memory has been added to the collection",
+        duration: 3000
+      });
+      
+      // Refresh the memory grid
       onMemoryAdded();
-      onClose();
+      
     } catch (error) {
       console.error("Error submitting memory:", error);
       toast({
