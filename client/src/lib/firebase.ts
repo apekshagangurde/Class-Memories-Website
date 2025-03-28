@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, startAfter, DocumentData, QueryDocumentSnapshot, deleteDoc, doc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, startAfter, DocumentData, QueryDocumentSnapshot, deleteDoc, doc, runTransaction } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import imageCompression from 'browser-image-compression';
 
@@ -19,6 +19,15 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+// Available reaction types
+export type ReactionType = 'like' | 'love' | 'laugh' | 'wow' | 'sad';
+
+// User reaction structure
+export interface Reaction {
+  type: ReactionType;
+  count: number;
+}
+
 export interface Memory {
   id: string;
   title: string;
@@ -27,6 +36,7 @@ export interface Memory {
   imageUrl?: string;
   createdAt: Date;
   featured?: boolean; // Flag for 5-star memories
+  reactions?: Record<ReactionType, number>; // Counts of each reaction type
 }
 
 const MEMORIES_PER_PAGE = 8;
@@ -198,7 +208,14 @@ export async function getMemories(
         author: data.author,
         imageUrl: data.imageUrl,
         createdAt: data.createdAt.toDate(),
-        featured: data.featured || false
+        featured: data.featured || false,
+        reactions: data.reactions || {
+          like: 0,
+          love: 0,
+          laugh: 0,
+          wow: 0,
+          sad: 0
+        }
       };
     });
     
@@ -237,6 +254,49 @@ export async function clearAndAddTraditionalDayMemory(): Promise<void> {
     console.log("Successfully cleared memories and added traditional day memory");
   } catch (error) {
     console.error("Error in clearAndAddTraditionalDayMemory:", error);
+    throw error;
+  }
+}
+
+// Function to add a reaction to a memory
+export async function addReaction(memoryId: string, reactionType: ReactionType): Promise<void> {
+  try {
+    console.log(`Adding ${reactionType} reaction to memory: ${memoryId}`);
+    
+    // Get the memory document reference
+    const memoryRef = doc(db, "memories", memoryId);
+    
+    // Use a transaction to ensure we're updating the correct count atomically
+    await runTransaction(db, async (transaction) => {
+      const memoryDoc = await transaction.get(memoryRef);
+      
+      if (!memoryDoc.exists()) {
+        throw new Error("Memory does not exist!");
+      }
+      
+      // Get current reactions or initialize if they don't exist
+      const memoryData = memoryDoc.data();
+      const currentReactions = memoryData.reactions || {
+        like: 0,
+        love: 0,
+        laugh: 0,
+        wow: 0,
+        sad: 0
+      };
+      
+      // Increment the count for this reaction type
+      const updatedReactions = {
+        ...currentReactions,
+        [reactionType]: (currentReactions[reactionType] || 0) + 1
+      };
+      
+      // Update the memory document
+      transaction.update(memoryRef, { reactions: updatedReactions });
+    });
+    
+    console.log(`Successfully added ${reactionType} reaction to memory: ${memoryId}`);
+  } catch (error) {
+    console.error("Error adding reaction:", error);
     throw error;
   }
 }

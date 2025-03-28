@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MemoryCard from './MemoryCard';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
@@ -16,6 +16,7 @@ const MemoryGrid: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [refetchCounter, setRefetchCounter] = useState(0);
+  const [reactionsCounter, setReactionsCounter] = useState(0);
   const { toast } = useToast();
 
   const fetchMemories = async (isInitial = false) => {
@@ -97,6 +98,14 @@ const MemoryGrid: React.FC = () => {
     // just fetch memories and then handle the Traditional Day memory in the UI
     fetchMemories(true);
   }, [refetchCounter]);
+  
+  // Effect to refresh memories when a reaction is added
+  useEffect(() => {
+    if (reactionsCounter > 0) {
+      console.log("Refreshing memories due to reaction update");
+      fetchMemories(true);
+    }
+  }, [reactionsCounter]);
 
   const handleLoadMore = () => {
     fetchMemories();
@@ -108,6 +117,10 @@ const MemoryGrid: React.FC = () => {
 
   const handleCloseLightbox = () => {
     setSelectedImage(null);
+  };
+  
+  const handleReactionAdded = () => {
+    setReactionsCounter(prev => prev + 1);
   };
 
   return (
@@ -156,6 +169,7 @@ const MemoryGrid: React.FC = () => {
                   key={memory.id} 
                   memory={memory} 
                   onImageClick={handleImageClick}
+                  onReactionAdded={handleReactionAdded}
                 />
               ))
             }

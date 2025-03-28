@@ -5,13 +5,15 @@ import { type Memory } from '../lib/firebase';
 import traditionalDayImage from '../assets/traditional_day.jpg';
 import classPhotoImage from '../assets/class_photo_new.jpg';
 import { Image as ImageIcon, Star } from 'lucide-react';
+import MemoryReactions from './MemoryReactions';
 
 interface MemoryCardProps {
   memory: Memory;
   onImageClick: (imageUrl: string) => void;
+  onReactionAdded?: () => void;
 }
 
-export default function MemoryCard({ memory, onImageClick }: MemoryCardProps) {
+export default function MemoryCard({ memory, onImageClick, onReactionAdded }: MemoryCardProps) {
   const formattedDate = format(memory.createdAt, 'PPP');
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isImageError, setIsImageError] = useState(false);
@@ -120,6 +122,12 @@ export default function MemoryCard({ memory, onImageClick }: MemoryCardProps) {
             </div>
           )}
         </div>
+        
+        {/* Reactions section */}
+        <MemoryReactions 
+          memory={memory} 
+          onReactionAdded={onReactionAdded} 
+        />
       </CardContent>
     </Card>
   );
