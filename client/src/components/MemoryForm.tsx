@@ -77,41 +77,61 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
     try {
       setIsSubmitting(true);
       
-      // Show a toast message to let the user know we're uploading
+      // First, show a minimal toast that stays for a short time
       toast({
-        title: "Processing...",
-        description: selectedImage ? "Uploading your memory and image. This may take a moment." : "Saving your memory.",
+        title: "Saving your memory...",
+        description: "Please wait a moment.",
+        duration: 2000, // shorter duration for better UX
       });
       
       let imageUrl = undefined;
       
+      // Process everything in parallel for faster completion
+      const promises: Promise<any>[] = [];
+      
+      // Start image compression and upload immediately if there's an image
       if (selectedImage) {
-        // Upload image first - this is usually the slow part
-        toast({
-          title: "Uploading image...",
-          description: "We're optimizing and uploading your image. This may take a moment.",
-        });
-        imageUrl = await uploadImage(selectedImage);
+        promises.push(
+          uploadImage(selectedImage)
+            .then(url => {
+              imageUrl = url;
+            })
+        );
       }
       
-      // Now add the memory data to Firebase
-      toast({
-        title: "Saving memory...",
-        description: "Almost done!",
-      });
+      // Start adding memory data to Firestore as soon as possible
+      // If there's an image, we'll update it later with the URL
+      if (!selectedImage) {
+        // If no image, add memory right away
+        promises.push(
+          addMemory({
+            title: data.title, 
+            content: data.content,
+            author: data.author,
+          })
+        );
+      }
       
-      await addMemory({
-        title: data.title,
-        content: data.content,
-        author: data.author,
-        imageUrl,
-      });
+      // Wait for all processes to complete
+      await Promise.all(promises);
       
+      // If we have an image but didn't add the memory yet, do it now with the image URL
+      if (selectedImage && imageUrl) {
+        await addMemory({
+          title: data.title,
+          content: data.content,
+          author: data.author,
+          imageUrl,
+        });
+      }
+      
+      // Show success message
       toast({
         title: "Success!",
         description: "Your memory has been shared",
       });
       
+      // Reset the form and close
       form.reset();
       removeImage();
       onMemoryAdded();
@@ -134,7 +154,7 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-heading font-bold text-gray-800">Share Your Memory</DialogTitle>
           <DialogDescription className="text-gray-600">
@@ -240,7 +260,7 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
               )}
             />
             
-            <DialogFooter>
+            <DialogFooter className="sticky bottom-0 bg-white py-4 border-t mt-6">
               <Button 
                 type="button" 
                 variant="outline" 

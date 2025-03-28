@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { type Memory } from '../lib/firebase';
 import traditionalDayImage from '../assets/traditional_day.jpg';
 import classPhotoImage from '../assets/class_photo_new.jpg';
+import { Image as ImageIcon } from 'lucide-react';
 
 interface MemoryCardProps {
   memory: Memory;
@@ -12,6 +13,8 @@ interface MemoryCardProps {
 
 export default function MemoryCard({ memory, onImageClick }: MemoryCardProps) {
   const formattedDate = format(memory.createdAt, 'PPP');
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [isImageError, setIsImageError] = useState(false);
   
   // Use the appropriate local image based on content or fallback to the provided URL
   let displayImageUrl = memory.imageUrl;
@@ -31,16 +34,53 @@ export default function MemoryCard({ memory, onImageClick }: MemoryCardProps) {
     displayImageUrl = classPhotoImage;
   }
   
+  useEffect(() => {
+    // Reset states when memory changes
+    if (displayImageUrl) {
+      setImageLoaded(false);
+      setIsImageError(false);
+      
+      // Preload the image for smoother transitions
+      const img = new Image();
+      img.src = displayImageUrl;
+      img.onload = () => setImageLoaded(true);
+      img.onerror = () => setIsImageError(true);
+    }
+  }, [displayImageUrl]);
+
+  // Handle image click with proper error checking
+  const handleImageClick = () => {
+    if (displayImageUrl && !isImageError) {
+      onImageClick(displayImageUrl);
+    }
+  };
+  
   return (
     <Card className="memory-card overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
       {(displayImageUrl || memory.id === "traditional-day-memory") && (
-        <div className="relative h-56 overflow-hidden">
-          <img 
-            src={displayImageUrl} 
-            alt={`Memory: ${memory.title}`} 
-            className="w-full h-full object-cover cursor-pointer" 
-            onClick={() => onImageClick(displayImageUrl!)}
-          />
+        <div className="relative h-56 overflow-hidden bg-gray-50">
+          {!imageLoaded && !isImageError && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-primary"></div>
+            </div>
+          )}
+          
+          {isImageError ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 text-gray-400">
+              <ImageIcon className="h-10 w-10 mb-2" />
+              <p className="text-sm">Image unavailable</p>
+            </div>
+          ) : (
+            <img 
+              src={displayImageUrl} 
+              alt={`Memory: ${memory.title}`} 
+              className={`w-full h-full object-cover cursor-pointer transition-all duration-500 ${imageLoaded ? 'opacity-100 hover:scale-105' : 'opacity-0'}`}
+              style={{ transition: 'opacity 0.3s ease-in-out' }}
+              onClick={handleImageClick}
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setIsImageError(true)}
+            />
+          )}
         </div>
       )}
       <CardContent className={(displayImageUrl || memory.id === "traditional-day-memory") ? "p-6" : "p-6 pt-6"}>
