@@ -30,87 +30,92 @@ export interface Memory {
 
 const MEMORIES_PER_PAGE = 8;
 
-// Function to upload an image to Firebase Storage with extreme compression for almost instant uploads
+// New approach: Convert image to base64 and store directly in Firestore
+// This avoids Firebase Storage issues
 export async function uploadImage(file: File): Promise<string> {
   try {
-    console.log("Starting image upload process...");
+    console.log("Starting image processing (base64 approach)...");
     
-    // Set a size threshold - tiny images don't need compression
-    const SIZE_THRESHOLD_MB = 0.3; // 300KB
+    // Compress the image first for smaller storage size
     const fileSizeMB = file.size / 1024 / 1024;
+    console.log(`Original image size: ${fileSizeMB.toFixed(2)}MB`);
     
-    // Start by preparing the filename - we'll need it regardless of compression path
-    const timestamp = Date.now();
-    const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const safeFileName = file.name.replace(/[^a-z0-9]/gi, '_').substring(0, 20); // Limit filename length, remove special chars
-    const filename = `memory_images/${timestamp}_${safeFileName}.${fileExtension}`;
-    
-    console.log(`Preparing to upload file: ${filename}, Original size: ${fileSizeMB.toFixed(2)}MB`);
-    
-    let fileToUpload: File | Blob = file;
-    let finalFilename = filename;
-    
-    // For larger files, compress them
-    if (fileSizeMB > SIZE_THRESHOLD_MB) {
-      try {
-        // For larger files, use ultra compression settings
-        const options = {
-          maxSizeMB: 0.1,             // Ultra tiny (100KB target)
-          maxWidthOrHeight: 800,      // Small enough for web viewing
-          useWebWorker: true,         // Parallel processing
-          fileType: 'image/jpeg',     // Always convert to JPEG
-          alwaysKeepResolution: false,
-          initialQuality: 0.5,        // Slightly higher quality for better images
-        };
+    // Always compress images to keep Firestore document size reasonable
+    const options = {
+      maxSizeMB: 0.1,             // Ultra tiny (100KB target) - Firestore has 1MB document limit
+      maxWidthOrHeight: 800,      // Limit dimensions
+      useWebWorker: true,
+      fileType: 'image/jpeg',
+      initialQuality: 0.5,
+    };
 
-        // Compress the image
-        console.time('Compression time');
-        const compressedFile = await imageCompression(file, options);
-        console.timeEnd('Compression time');
-        
-        console.log(`Compression successful - Original: ${fileSizeMB.toFixed(2)}MB → Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
-        
-        fileToUpload = compressedFile;
-        finalFilename = `memory_images/${timestamp}_compressed.jpg`; // Always use jpg for compressed files
-      } catch (compressionError) {
-        console.error("Image compression failed:", compressionError);
-        console.log("Will try to upload original file instead");
-      }
-    } else {
-      console.log(`File already small (${fileSizeMB.toFixed(2)}MB), skipping compression`);
-    }
+    console.time('Compression time');
+    const compressedFile = await imageCompression(file, options);
+    console.timeEnd('Compression time');
     
-    // Upload the file (either compressed or original)
-    console.log(`Uploading to Firebase Storage: ${finalFilename}`);
-    const storageRef = ref(storage, finalFilename);
+    const compressedSizeMB = compressedFile.size / 1024 / 1024;
+    console.log(`Compression successful - Original: ${fileSizeMB.toFixed(2)}MB → Compressed: ${compressedSizeMB.toFixed(2)}MB`);
     
-    try {
-      const metadata = {
-        contentType: fileToUpload.type || 'image/jpeg',
-        customMetadata: {
-          originalSize: `${fileSizeMB.toFixed(2)}MB`,
-          originalName: file.name
+    // Convert the compressed file to base64
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          const base64String = reader.result;
+          console.log(`Base64 conversion successful, length: ${base64String.length} chars`);
+          
+          // Make sure we're under Firestore's document size limit (1MB)
+          if (base64String.length > 750000) {
+            // If still too large, we need to compress more aggressively
+            console.log("Image still too large for Firestore, applying more compression");
+            
+            // Create an image element to further resize
+            const img = new Image();
+            img.onload = () => {
+              // Create a canvas to resize the image
+              const canvas = document.createElement('canvas');
+              // Scale down more if needed
+              let width = img.width;
+              let height = img.height;
+              
+              // Keep aspect ratio but limit size further
+              const maxDimension = 600;
+              if (width > height && width > maxDimension) {
+                height = (height / width) * maxDimension;
+                width = maxDimension;
+              } else if (height > maxDimension) {
+                width = (width / height) * maxDimension;
+                height = maxDimension;
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              
+              // Draw and export with lower quality
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              
+              // Get the data URL with lower quality
+              const reducedBase64 = canvas.toDataURL('image/jpeg', 0.3);
+              console.log(`Further compressed base64 length: ${reducedBase64.length} chars`);
+              
+              resolve(reducedBase64);
+            };
+            
+            img.src = base64String;
+          } else {
+            resolve(base64String);
+          }
+        } else {
+          reject(new Error("Failed to convert file to base64"));
         }
       };
-      
-      const snapshot = await uploadBytes(storageRef, fileToUpload, metadata);
-      console.log("Upload successful, getting download URL...");
-      
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      console.log("Got download URL:", downloadURL.substring(0, 50) + "...");
-      return downloadURL;
-    } catch (uploadError) {
-      console.error("Error uploading to Firebase Storage:", uploadError);
-      
-      // Try one more time with a simplified approach
-      console.log("Attempting fallback upload with minimal metadata");
-      const fallbackRef = ref(storage, `memory_images/fallback_${timestamp}.jpg`);
-      const fallbackSnapshot = await uploadBytes(fallbackRef, fileToUpload);
-      return getDownloadURL(fallbackSnapshot.ref);
-    }
+      reader.onerror = () => reject(new Error("Error reading file"));
+      reader.readAsDataURL(compressedFile);
+    });
   } catch (error) {
-    console.error("Fatal error in image upload process:", error);
-    throw new Error("Could not upload image after multiple attempts: " + (error instanceof Error ? error.message : String(error)));
+    console.error("Error in image processing:", error);
+    throw new Error("Failed to process image: " + (error instanceof Error ? error.message : String(error)));
   }
 }
 
