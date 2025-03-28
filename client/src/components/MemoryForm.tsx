@@ -75,51 +75,66 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
 
   const onSubmit = async (data: FormValues) => {
     try {
+      // Ensure we're in submitting state
       setIsSubmitting(true);
       
-      // Start with a simple minimal notification
-      const initialToast = toast({
-        title: "Sharing memory...",
-        description: "Creating your memory",
-        duration: 3000
-      });
-      
-      // Close the form immediately for better UX - let processing continue in background
-      setTimeout(() => {
-        form.reset();
-        removeImage();
-        onClose();
-      }, 300);
-      
-      // Process image if needed
-      let imageUrl: string | undefined = undefined;
-      if (selectedImage) {
-        // Upload and get the URL
-        try {
-          imageUrl = await uploadImage(selectedImage);
-        } catch (uploadError) {
-          console.error("Image upload failed:", uploadError);
-          // Continue without an image
-        }
-      }
-      
-      // Add memory to database
-      await addMemory({
+      // Save form data for use after form is closed
+      const memoryData = {
         title: data.title,
         content: data.content,
         author: data.author,
+      };
+      
+      // Show processing notification
+      toast({
+        title: "Processing...",
+        description: "Saving your memory",
+        duration: 5000
+      });
+      
+      // IMPORTANT: Start Firebase operations BEFORE closing the form
+      let uploadPromise: Promise<string | undefined> = Promise.resolve(undefined);
+      
+      // Start image upload if we have an image - but don't wait for completion
+      if (selectedImage) {
+        console.log("Starting image upload for", selectedImage.name);
+        uploadPromise = uploadImage(selectedImage)
+          .catch(err => {
+            console.error("Upload error:", err);
+            return undefined;
+          });
+      }
+      
+      // Close the form for better UX 
+      form.reset();
+      removeImage();
+      onClose();
+      
+      // Now wait for the image upload to complete
+      console.log("Waiting for image upload to complete...");
+      const imageUrl = await uploadPromise;
+      console.log("Image upload finished, got URL:", imageUrl ? "Yes" : "No");
+      
+      // Now save the memory to Firebase
+      console.log("Adding memory to Firebase...");
+      const memoryId = await addMemory({
+        ...memoryData,
         imageUrl,
       });
+      console.log("Memory added with ID:", memoryId);
       
-      // Success notification
+      // Trigger UI refresh explicitly - use a small delay to ensure Firebase has time to update
+      setTimeout(() => {
+        console.log("Calling onMemoryAdded to refresh the memory grid");
+        onMemoryAdded();
+      }, 500);
+      
+      // Show success notification
       toast({
-        title: "Memory shared!",
-        description: "Your memory has been added to the collection",
+        title: "Success!",
+        description: "Your memory has been saved",
         duration: 3000
       });
-      
-      // Refresh the memory grid
-      onMemoryAdded();
       
     } catch (error) {
       console.error("Error submitting memory:", error);

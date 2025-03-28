@@ -19,30 +19,38 @@ const MemoryGrid: React.FC = () => {
 
   const fetchMemories = async (isInitial = false) => {
     try {
+      console.log("Fetching memories, isInitial:", isInitial);
       setIsLoading(true);
       
       // Try to fetch from Firebase, but we'll have a fallback for errors
       try {
         const lastDoc = isInitial ? undefined : (lastVisible || undefined);
+        console.log("Calling getMemories with lastDoc:", lastDoc ? "exists" : "undefined");
         const result = await getMemories(lastDoc);
+        console.log(`Fetched ${result.memories.length} memories from Firebase`);
         
         if (isInitial) {
           if (result.memories.length === 0) {
+            console.log("No memories found, creating traditional day memory");
             createTraditionalDayMemory();
           } else {
+            console.log("Setting initial memories:", result.memories.length);
             setMemories(result.memories);
           }
         } else {
+          console.log("Adding more memories to existing list");
           setMemories(prev => [...prev, ...result.memories]);
         }
         
         setLastVisible(result.lastVisible);
         setHasMore(!!result.lastVisible && result.memories.length > 0);
+        console.log("Has more memories:", !!result.lastVisible && result.memories.length > 0);
       } catch (firebaseError) {
         console.error("Error fetching memories from Firebase:", firebaseError);
         
         // If Firebase fails and this is initial load, create a hardcoded memory
         if (isInitial) {
+          console.log("Firebase error on initial load, creating fallback memory");
           createTraditionalDayMemory();
           
           // No more memories to load after this
