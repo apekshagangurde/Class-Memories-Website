@@ -4,8 +4,9 @@ import { format } from 'date-fns';
 import { type Memory } from '../lib/firebase';
 import traditionalDayImage from '../assets/traditional_day.jpg';
 import classPhotoImage from '../assets/class_photo_new.jpg';
-import { Image as ImageIcon, Star } from 'lucide-react';
+import { Image as ImageIcon, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import MemoryReactions from './MemoryReactions';
+import { Button } from './ui/button';
 
 interface MemoryCardProps {
   memory: Memory;
@@ -17,6 +18,7 @@ export default function MemoryCard({ memory, onImageClick, onReactionAdded }: Me
   const formattedDate = format(memory.createdAt, 'PPP');
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isImageError, setIsImageError] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Use the appropriate local image based on content or fallback to the provided URL
   let displayImageUrl = memory.imageUrl;
@@ -55,6 +57,11 @@ export default function MemoryCard({ memory, onImageClick, onReactionAdded }: Me
     if (displayImageUrl && !isImageError) {
       onImageClick(displayImageUrl);
     }
+  };
+
+  // Function to check if content needs expansion
+  const needsExpansion = (text: string) => {
+    return text.length > 200;
   };
   
   return (
@@ -105,7 +112,29 @@ export default function MemoryCard({ memory, onImageClick, onReactionAdded }: Me
           </h3>
           <span className="text-xs text-gray-500">{formattedDate}</span>
         </div>
-        <p className="text-gray-600 mb-4 line-clamp-3">{memory.content}</p>
+        <div className="relative">
+          <p className={`text-gray-600 mb-4 ${!isExpanded && needsExpansion(memory.content) ? 'line-clamp-3' : ''}`}>
+            {memory.content}
+          </p>
+          {needsExpansion(memory.content) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute bottom-0 right-0 bg-white hover:bg-gray-50"
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? (
+                <>
+                  Show Less <ChevronUp className="h-4 w-4 ml-1" />
+                </>
+              ) : (
+                <>
+                  Read More <ChevronDown className="h-4 w-4 ml-1" />
+                </>
+              )}
+            </Button>
+          )}
+        </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-3">

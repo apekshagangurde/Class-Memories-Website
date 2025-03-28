@@ -122,7 +122,9 @@ const MemoryStories: React.FC<MemoryStoriesProps> = ({ memories, onClose }) => {
           </div>
           
           <h3 className="text-xl font-bold mb-2">{currentMemory.title}</h3>
-          <p className="text-gray-200">{currentMemory.content}</p>
+          <div className="prose prose-invert max-w-none">
+            <p className="text-gray-200 whitespace-pre-wrap">{currentMemory.content}</p>
+          </div>
           
           {currentMemory.featured && (
             <div className="mt-4 inline-block px-3 py-1 bg-gradient-to-r from-amber-400 to-yellow-300 text-black rounded-full text-sm font-bold">
