@@ -160,21 +160,26 @@ const MemoryGrid: React.FC = () => {
           {/* View Stories Button - only visible in stories mode */}
           {isStoriesMode && memories.length > 0 && (
             <Button 
-              className="bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white"
+              className="bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white relative overflow-hidden group animate-pulse hover:animate-none shadow-md hover:shadow-rose-400/30"
               onClick={() => setViewingStories(true)}
             >
-              <Play className="mr-2 h-4 w-4" />
-              View Stories
+              <span className="absolute inset-0 w-full h-full">
+                <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-shine" style={{ transform: 'skewX(-20deg)' }}></span>
+              </span>
+              <Play className="mr-2 h-4 w-4 group-hover:scale-110 transition-all duration-300" />
+              <span className="relative z-10">View Stories</span>
             </Button>
           )}
           
-          {/* Add Memory Button */}
+          {/* Add Memory Button with animation */}
           <Button 
-            className="bg-secondary hover:bg-amber-600 text-white"
+            className="bg-secondary hover:bg-amber-600 text-white relative overflow-hidden group animate-pulse hover:animate-none transition-all duration-300 shadow-lg hover:shadow-amber-300/50"
             onClick={() => setIsMemoryFormOpen(true)}
           >
-            <PlusCircle className="mr-2 h-5 w-5" />
-            Add Memory
+            <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-amber-400 to-amber-300 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></span>
+            <PlusCircle className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
+            <span className="relative z-10">Add Memory</span>
+            <span className="absolute bottom-0 left-0 h-1 w-0 bg-white group-hover:w-full transition-all duration-300"></span>
           </Button>
         </div>
       </div>
@@ -185,10 +190,12 @@ const MemoryGrid: React.FC = () => {
           <p className="text-gray-500 mb-6">Be the first to share a class memory!</p>
           <Button 
             onClick={() => setIsMemoryFormOpen(true)}
-            className="bg-primary hover:bg-primary/90"
+            className="bg-primary hover:bg-primary/90 relative overflow-hidden group animate-bounce hover:animate-none shadow-lg hover:shadow-primary/30"
           >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Share a Memory
+            <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary-foreground to-primary-foreground opacity-0 group-hover:opacity-10 transition-opacity duration-300"></span>
+            <PlusCircle className="mr-2 h-4 w-4 group-hover:rotate-90 transition-transform duration-300" />
+            <span className="relative z-10">Share a Memory</span>
+            <span className="absolute bottom-0 left-0 h-1 w-0 bg-white group-hover:w-full transition-all duration-300"></span>
           </Button>
         </div>
       ) : (
