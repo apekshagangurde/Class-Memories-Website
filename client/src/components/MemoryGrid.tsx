@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import MemoryForm from './MemoryForm';
 import ImageLightbox from './ImageLightbox';
-import { getMemories, type Memory } from '../lib/firebase';
+import { getMemories, type Memory, clearAndAddTraditionalDayMemory } from '../lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
@@ -20,7 +20,7 @@ const MemoryGrid: React.FC = () => {
   const fetchMemories = async (isInitial = false) => {
     try {
       setIsLoading(true);
-      const lastDoc = isInitial ? undefined : lastVisible;
+      const lastDoc = isInitial ? undefined : (lastVisible || undefined);
       const result = await getMemories(lastDoc);
       
       if (isInitial) {
@@ -44,7 +44,24 @@ const MemoryGrid: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchMemories(true);
+    const initializeMemories = async () => {
+      try {
+        // First clear any existing memories and add the single Traditional Day memory
+        await clearAndAddTraditionalDayMemory();
+        
+        // Then fetch the memories to display
+        fetchMemories(true);
+      } catch (error) {
+        console.error("Error initializing memories:", error);
+        toast({
+          title: "Error",
+          description: "Failed to initialize memories. Please try again later.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    initializeMemories();
   }, []);
 
   const handleLoadMore = () => {

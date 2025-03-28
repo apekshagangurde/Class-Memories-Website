@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, startAfter, DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, startAfter, DocumentData, QueryDocumentSnapshot, deleteDoc, doc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // Firebase configuration
@@ -47,7 +47,7 @@ export async function addMemory(memory: Omit<Memory, 'id' | 'createdAt'>): Promi
 
 // Function to fetch memories with pagination
 export async function getMemories(
-  lastVisible?: QueryDocumentSnapshot<DocumentData>
+  lastVisible?: QueryDocumentSnapshot<DocumentData> | null
 ): Promise<{ memories: Memory[]; lastVisible: QueryDocumentSnapshot<DocumentData> | null }> {
   try {
     let memoriesQuery;
@@ -91,6 +91,31 @@ export async function getMemories(
     };
   } catch (error) {
     console.error("Error fetching memories:", error);
+    throw error;
+  }
+}
+
+// Function to clear all existing memories and add a new one about traditional day
+export async function clearAndAddTraditionalDayMemory(): Promise<void> {
+  try {
+    // 1. Delete all existing memories
+    const allMemoriesQuery = query(collection(db, "memories"));
+    const snapshot = await getDocs(allMemoriesQuery);
+    
+    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+    
+    // 2. Add the new memory about traditional day with Apeksha as author
+    await addMemory({
+      title: "Traditional Day Celebration",
+      content: "We celebrated our cultural heritage with a vibrant Traditional Day event. Everyone dressed in their traditional attire, showcasing the diverse cultural backgrounds of our class. The day was filled with performances, traditional food, and lots of photos to capture the memories.",
+      author: "Apeksha",
+      imageUrl: "https://images.unsplash.com/photo-1565035010268-a3816f98589a?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80" // Will be replaced with a local image in the UI
+    });
+    
+    console.log("Successfully cleared memories and added traditional day memory");
+  } catch (error) {
+    console.error("Error in clearAndAddTraditionalDayMemory:", error);
     throw error;
   }
 }
