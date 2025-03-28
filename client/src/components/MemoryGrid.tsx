@@ -79,7 +79,8 @@ const MemoryGrid: React.FC = () => {
       author: "Apeksha",
       createdAt: new Date(),
       // We'll handle the actual image in the MemoryCard component
-      imageUrl: "placeholder-for-traditional-day"
+      imageUrl: "placeholder-for-traditional-day",
+      featured: true // Make this a featured memory
     };
     setMemories([traditionalDayMemory]);
   };
@@ -141,13 +142,23 @@ const MemoryGrid: React.FC = () => {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {memories.map((memory) => (
-              <MemoryCard 
-                key={memory.id} 
-                memory={memory} 
-                onImageClick={handleImageClick}
-              />
-            ))}
+            {/* Sort memories so featured ones appear first */}
+            {memories
+              .sort((a, b) => {
+                // Featured memories appear first
+                if (a.featured && !b.featured) return -1;
+                if (!a.featured && b.featured) return 1;
+                // Then sort by date
+                return b.createdAt.getTime() - a.createdAt.getTime();
+              })
+              .map((memory) => (
+                <MemoryCard 
+                  key={memory.id} 
+                  memory={memory} 
+                  onImageClick={handleImageClick}
+                />
+              ))
+            }
           </div>
           
           {hasMore && (

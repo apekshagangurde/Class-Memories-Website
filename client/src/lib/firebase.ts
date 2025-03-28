@@ -26,6 +26,7 @@ export interface Memory {
   author: string;
   imageUrl?: string;
   createdAt: Date;
+  featured?: boolean; // Flag for 5-star memories
 }
 
 const MEMORIES_PER_PAGE = 8;
@@ -133,12 +134,23 @@ export async function addMemory(memory: {
     imageUrl: memory.imageUrl ? "[Image URL exists]" : undefined
   }, null, 2));
   
+  // Determine if this should be a featured (5-star) memory based on content quality
+  // Check for longer, more detailed content, presence of an image, and descriptive title
+  const hasImage = !!memory.imageUrl;
+  const contentLength = memory.content.length;
+  const isTitleDescriptive = memory.title.length > 15;
+  const hasSubstantiveContent = contentLength > 80;
+  
+  // Featured if it has both an image and substantial content
+  const featured = hasImage && hasSubstantiveContent && isTitleDescriptive;
+  
   // Make sure we sanitize the data properly
   const memoryToSave = {
     title: memory.title || "",
     content: memory.content || "",
     author: memory.author || "",
     createdAt: new Date(),
+    featured, // Add the featured flag
     // Only include imageUrl if it's defined and not empty
     ...(memory.imageUrl ? { imageUrl: memory.imageUrl } : {})
   };
@@ -185,7 +197,8 @@ export async function getMemories(
         content: data.content,
         author: data.author,
         imageUrl: data.imageUrl,
-        createdAt: data.createdAt.toDate()
+        createdAt: data.createdAt.toDate(),
+        featured: data.featured || false
       };
     });
     
