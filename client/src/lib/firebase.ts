@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, startAfter, DocumentData, QueryDocumentSnapshot, deleteDoc, doc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import imageCompression from 'browser-image-compression';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -29,11 +30,37 @@ export interface Memory {
 
 const MEMORIES_PER_PAGE = 8;
 
-// Function to upload an image to Firebase Storage
+// Function to upload an image to Firebase Storage with compression
 export async function uploadImage(file: File): Promise<string> {
-  const storageRef = ref(storage, `memory_images/${Date.now()}_${file.name}`);
-  const snapshot = await uploadBytes(storageRef, file);
-  return getDownloadURL(snapshot.ref);
+  try {
+    // Compression options
+    const options = {
+      maxSizeMB: 1,             // Max size after compression
+      maxWidthOrHeight: 1920,   // Limit width/height while maintaining aspect ratio
+      useWebWorker: true,       // Use web worker for faster compression
+      fileType: file.type,      // Preserve original file type
+    };
+
+    // Compress the image
+    const compressedFile = await imageCompression(file, options);
+    
+    // Generate a unique filename
+    const storageRef = ref(storage, `memory_images/${Date.now()}_${file.name}`);
+    
+    // Upload the compressed file
+    const snapshot = await uploadBytes(storageRef, compressedFile);
+    
+    // Return the download URL
+    return getDownloadURL(snapshot.ref);
+  } catch (error) {
+    console.error("Error compressing/uploading image:", error);
+    
+    // Fallback to original file if compression fails
+    console.log("Falling back to original file upload");
+    const storageRef = ref(storage, `memory_images/${Date.now()}_${file.name}`);
+    const snapshot = await uploadBytes(storageRef, file);
+    return getDownloadURL(snapshot.ref);
+  }
 }
 
 // Function to add a memory to Firestore

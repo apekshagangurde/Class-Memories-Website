@@ -25,7 +25,8 @@ const Home: React.FC = () => {
             </div>
           </div>
           <div className="mt-8 pt-6 border-t border-gray-700 text-center text-gray-400 text-sm">
-            <p>© 2023 BE2025 Class. All memories belong to their respective authors.</p>
+            <p>© 2025 BE2025 Class. All memories belong to their respective authors.</p>
+            <p className="mt-2">Developed by Apeksha Gangurde</p>
           </div>
         </div>
       </footer>

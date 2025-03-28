@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,11 +46,11 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       
-      // Check file size (5MB limit)
-      if (file.size > 5 * 1024 * 1024) {
+      // Check file size (15MB limit)
+      if (file.size > 15 * 1024 * 1024) {
         toast({
           title: "File too large",
-          description: "Please select an image under 5MB",
+          description: "Please select an image under 15MB",
           variant: "destructive",
         });
         return;
@@ -77,11 +77,28 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
     try {
       setIsSubmitting(true);
       
+      // Show a toast message to let the user know we're uploading
+      toast({
+        title: "Processing...",
+        description: selectedImage ? "Uploading your memory and image. This may take a moment." : "Saving your memory.",
+      });
+      
       let imageUrl = undefined;
       
       if (selectedImage) {
+        // Upload image first - this is usually the slow part
+        toast({
+          title: "Uploading image...",
+          description: "We're optimizing and uploading your image. This may take a moment.",
+        });
         imageUrl = await uploadImage(selectedImage);
       }
+      
+      // Now add the memory data to Firebase
+      toast({
+        title: "Saving memory...",
+        description: "Almost done!",
+      });
       
       await addMemory({
         title: data.title,
@@ -120,6 +137,9 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-xl font-heading font-bold text-gray-800">Share Your Memory</DialogTitle>
+          <DialogDescription className="text-gray-600">
+            Images must be under 15MB in size. Large images will be automatically optimized.
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
@@ -197,7 +217,7 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
                   <div>
                     <Upload className="mx-auto h-12 w-12 text-gray-400" />
                     <p className="mt-2 text-sm text-gray-600">Click to upload an image or drag and drop</p>
-                    <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF up to 5MB</p>
+                    <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF up to 15MB (images will be optimized)</p>
                   </div>
                 )}
               </div>
@@ -232,8 +252,14 @@ const MemoryForm: React.FC<MemoryFormProps> = ({ isOpen, onClose, onMemoryAdded 
               <Button 
                 type="submit" 
                 disabled={isSubmitting}
+                className="min-w-[150px]"
               >
-                {isSubmitting ? "Sharing..." : "Share Memory"}
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center">
+                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                    Sharing...
+                  </span>
+                ) : "Share Memory"}
               </Button>
             </DialogFooter>
           </form>

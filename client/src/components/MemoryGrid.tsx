@@ -20,19 +20,37 @@ const MemoryGrid: React.FC = () => {
   const fetchMemories = async (isInitial = false) => {
     try {
       setIsLoading(true);
-      const lastDoc = isInitial ? undefined : (lastVisible || undefined);
-      const result = await getMemories(lastDoc);
       
-      if (isInitial) {
-        setMemories(result.memories);
-      } else {
-        setMemories(prev => [...prev, ...result.memories]);
+      // Try to fetch from Firebase, but we'll have a fallback for errors
+      try {
+        const lastDoc = isInitial ? undefined : (lastVisible || undefined);
+        const result = await getMemories(lastDoc);
+        
+        if (isInitial) {
+          if (result.memories.length === 0) {
+            createTraditionalDayMemory();
+          } else {
+            setMemories(result.memories);
+          }
+        } else {
+          setMemories(prev => [...prev, ...result.memories]);
+        }
+        
+        setLastVisible(result.lastVisible);
+        setHasMore(!!result.lastVisible && result.memories.length > 0);
+      } catch (firebaseError) {
+        console.error("Error fetching memories from Firebase:", firebaseError);
+        
+        // If Firebase fails and this is initial load, create a hardcoded memory
+        if (isInitial) {
+          createTraditionalDayMemory();
+          
+          // No more memories to load after this
+          setHasMore(false);
+        }
       }
-      
-      setLastVisible(result.lastVisible);
-      setHasMore(!!result.lastVisible && result.memories.length > 0);
     } catch (error) {
-      console.error("Error fetching memories:", error);
+      console.error("Critical error in fetchMemories:", error);
       toast({
         title: "Error",
         description: "Failed to load memories. Please try again later.",
@@ -42,26 +60,25 @@ const MemoryGrid: React.FC = () => {
       setIsLoading(false);
     }
   };
+  
+  // Helper function to create the traditional day memory
+  const createTraditionalDayMemory = () => {
+    const traditionalDayMemory: Memory = {
+      id: "traditional-day-memory",
+      title: "Our Class Photo at K. K. Wagh Institute",
+      content: "This is a photo of our BE2025 class at K. K. Wagh Institute of Engineering Education and Research. We've had so many wonderful memories together during our time at the institute. This photo was taken at the entrance of our college building.",
+      author: "Apeksha",
+      createdAt: new Date(),
+      // We'll handle the actual image in the MemoryCard component
+      imageUrl: "placeholder-for-traditional-day"
+    };
+    setMemories([traditionalDayMemory]);
+  };
 
   useEffect(() => {
-    const initializeMemories = async () => {
-      try {
-        // First clear any existing memories and add the single Traditional Day memory
-        await clearAndAddTraditionalDayMemory();
-        
-        // Then fetch the memories to display
-        fetchMemories(true);
-      } catch (error) {
-        console.error("Error initializing memories:", error);
-        toast({
-          title: "Error",
-          description: "Failed to initialize memories. Please try again later.",
-          variant: "destructive",
-        });
-      }
-    };
-    
-    initializeMemories();
+    // Instead of clearing Firebase (which requires admin privileges),
+    // just fetch memories and then handle the Traditional Day memory in the UI
+    fetchMemories(true);
   }, []);
 
   const handleLoadMore = () => {
